@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Structured Telemetry Ingestion - SMRS{% endblock %}
+{% block header_title %}Structured Time-Series Ingestion & REST API Portal{% endblock %}
+
+{% block content %}
+<div class="row g-4 mb-4">
+  <!-- INGESTION PORTAL & SIMULATION TESTER (LEFT COLUMN) -->
+  <div class="col-xl-5">
+    <div class="card-glass">
+      <div class="card-header-custom">
+        <div>
+          <h5 class="text-white mb-0"><i class="bi bi-cloud-arrow-up text-cyan me-2"></i>REST API Ingestion Console</h5>
+          <small class="text-secondary">Simulate IoT Smart Meter posting to <code>/api/readings/ingest</code></small>
+        </div>
+        <button class="btn btn-outline-custom btn-sm" id="btn-prefill-json" title="Pre-fill sample meter telemetry">
+          <i class="bi bi-magic me-1"></i>Sample
+        </button>
+      </div>
+      <div class="card-body-custom">
+        <form id="ingestForm">
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label text-secondary small">METER ID *</label>
+              <select class="form-select form-select-custom" id="ingest_meter_id" required>
+                <option value="">Select target meter...</option>
+                <!-- Populated by JS -->
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label text-secondary small">ACTIVE POWER (kW) *</label>
+              <input type="number" step="0.01" class="form-control form-control-custom" id="ingest_active_kw" placeholder="e.g. 3.45" required>
+            </div>
+          </div>
+
+          <div class="row g-2 mb-2">
+            <div class="col-6">
+              <label class="form-label text-secondary small">CUMULATIVE (kWh) *</label>
+              <input type="number" step="0.01" class="form-control form-control-custom" id="ingest_kwh" placeholder="e.g. 512.40" required>
+            </div>
+            <div class="col-6">
+              <label class="form-label text-secondary small">VOLTAGE (V)</label>
+              <input type="number" step="0.1" class="form-control form-control-custom" id="ingest_voltage" value="230.5">
+            </div>
+          </div>
+
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label text-secondary small">POWER FACTOR (0.80 - 1.0)</label>
+              <input type="number" step="0.01" class="form-control form-control-custom" id="ingest_pf" value="0.96">
+            </div>
+            <div class="col-6">
+              <label class="form-label text-secondary small">TAMPER ALARM</label>
+              <select class="form-select form-select-custom" id="ingest_tamper">
+                <option value="0">Normal (No Tampering)</option>
+                <option value="1">Flagged (Cover Breach / Reverse Flow)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary-custom flex-grow-1" id="btn-submit-reading">
+              <i class="bi bi-send me-1"></i>Post Reading via REST API
+            </button>
+            <button type="button" class="btn btn-outline-custom" id="btn-seed-history" title="Generate 5-day historical readings">
+              <i class="bi bi-clock-history me-1"></i>Seed 5-Day Data
+            </button>
+          </div>
+        </form>
+
+        <!-- LIVE REST API RESPONSE VIEWER -->
+        <div class="mt-3 pt-3 border-top border-secondary border-opacity-25">
+          <div class="d-flex align-items-center justify-content-between mb-1">
+            <small class="text-secondary fw-bold">API HTTP RESPONSE (JSON):</small>
+            <span class="badge bg-dark text-cyan" id="responseStatusBadge">IDLE</span>
+          </div>
+          <pre id="apiResponseViewer" class="p-2 rounded bg-black text-emerald small mb-0" style="max-height: 140px; overflow-y: auto; font-family: monospace; font-size: 0.75rem;">
+{
+  "status": "Ready to ingest telemetry",
+  "endpoint": "POST /api/readings/ingest",
+  "db_backend": "{{ db_engine|upper }}"
+}
+          </pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- RELATIONAL STORAGE ARCHITECTURE HIGHLIGHT (RIGHT COLUMN) -->
+  <div class="col-xl-7">
+    <div class="card-glass h-100">
+      <div class="card-header-custom">
+        <h5 class="text-white mb-0"><i class="bi bi-layers text-emerald me-2"></i>Structured Storage Architecture</h5>
+        <span class="badge bg-info text-dark">Solved Problem</span>
+      </div>
+      <div class="card-body-custom">
+        <p class="text-secondary small mb-3">
+          To solve the utility company's problem of unorganized, chaotic meter records, SMRS stores readings in a relational time-series table (<code>meter_readings</code>) with foreign key constraints, automated indexing, and indexed timestamps.
+        </p>
+
+        <div class="row g-2 mb-3 text-center">
+          <div class="col-4">
+            <div class="p-2 rounded bg-dark border border-secondary border-opacity-25">
+              <span class="text-secondary small d-block">PRIMARY KEY</span>
+              <strong class="text-white">reading_id (Auto)</strong>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="p-2 rounded bg-dark border border-secondary border-opacity-25">
+              <span class="text-secondary small d-block">FOREIGN KEY</span>
+              <strong class="text-cyan">meter_id &rarr; meters</strong>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="p-2 rounded bg-dark border border-secondary border-opacity-25">
+              <span class="text-secondary small d-block">TIME-OF-USE INDEX</span>
+              <strong class="text-emerald">(meter_id, timestamp)</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3 rounded bg-dark border border-secondary border-opacity-25">
+          <h6 class="text-white small fw-bold mb-2"><i class="bi bi-check2-circle text-emerald me-1"></i>Key Benefits Over Unstructured Files:</h6>
+          <ul class="text-secondary small mb-0 ps-3">
+            <li><strong>Atomic Ingestion:</strong> Zero record loss or duplicate calculation issues.</li>
+            <li><strong>Peak-Hour Flagging:</strong> Real-time categorization of ToU units for billing tariffs.</li>
+            <li><strong>Sub-second Load Analysis:</strong> Instantaneous 24-hr aggregation by Feeder for load planning.</li>
+            <li><strong>Automated Anomaly Detection:</strong> Immediate alerts for abnormal voltage drops, zero-draw, or tampering.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TIME-SERIES READINGS LOGS TABLE -->
+<div class="card-glass">
+  <div class="card-header-custom">
+    <div>
+      <h5 class="text-white mb-0"><i class="bi bi-clock-history text-cyan me-2"></i>Recent Structured Reading Logs</h5>
+      <small class="text-secondary">Direct audit trail of historical time-series telemetry records</small>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <select class="form-select form-select-sm form-select-custom" id="filterReadingMeter" style="width: 170px;">
+        <option value="">All Meters</option>
+        <!-- Populated by JS -->
+      </select>
+      <button class="btn btn-outline-custom btn-sm" id="btn-refresh-readings">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+    </div>
+  </div>
+
+  <div class="table-responsive" style="max-height: 480px; overflow-y: auto;">
+    <table class="table table-custom align-middle">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Meter ID</th>
+          <th>Timestamp</th>
+          <th>Cumulative (kWh)</th>
+          <th>Active Load (kW)</th>
+          <th>Voltage (V)</th>
+          <th>Current (A)</th>
+          <th>Power Factor</th>
+          <th>Peak Hour</th>
+          <th>Ingestion Mode</th>
+        </tr>
+      </thead>
+      <tbody id="readingsLogTableBody">
+        <tr>
+          <td colspan="10" class="text-center py-4 text-secondary">Loading telemetry log...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/readings.js') }}"></script>
+{% endblock %}

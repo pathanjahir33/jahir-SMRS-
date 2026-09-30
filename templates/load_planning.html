@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block title %}Load Planning & Grid Optimization - SMRS{% endblock %}
+{% block header_title %}Grid Load Planning & Capacity Optimization{% endblock %}
+
+{% block content %}
+<!-- PROBLEM STATEMENT SOLUTION BANNER -->
+<div class="card-glass p-3 mb-4 border-start border-4 border-info">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+      <h6 class="text-white mb-1"><i class="bi bi-bullseye text-cyan me-2"></i>Load Planning Engine</h6>
+      <small class="text-secondary">
+        Without structured meter storage, utility companies suffer transformer overloads and power outages. SMRS aggregates time-series telemetry to model demand curves and forecast substation capacity requirements.
+      </small>
+    </div>
+    <span class="badge bg-primary bg-opacity-25 text-cyan border border-info border-opacity-25 px-3 py-2">
+      <i class="bi bi-shield-check me-1"></i>Active Grid Protection
+    </span>
+  </div>
+</div>
+
+<!-- LOAD PLANNING KPI SUMMARY -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card">
+      <div class="kpi-info">
+        <span>MAX GRID PEAK DEMAND</span>
+        <h3 id="plan-max-demand">-- kW</h3>
+        <small class="text-warning"><i class="bi bi-clock me-1"></i>Window: <span id="plan-peak-window">18:00 - 22:00</span></small>
+      </div>
+      <div class="kpi-icon icon-amber">
+        <i class="bi bi-graph-up"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card">
+      <div class="kpi-info">
+        <span>AVERAGE CONTINUOUS LOAD</span>
+        <h3 id="plan-avg-demand">-- kW</h3>
+        <small class="text-secondary">Base generation requirement</small>
+      </div>
+      <div class="kpi-icon icon-cyan">
+        <i class="bi bi-activity"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card">
+      <div class="kpi-info">
+        <span>GRID LOAD FACTOR</span>
+        <h3 id="plan-load-factor">--%</h3>
+        <small class="text-emerald"><i class="bi bi-check-circle me-1"></i>Target: &gt; 65.0%</small>
+      </div>
+      <div class="kpi-icon icon-emerald">
+        <i class="bi bi-pie-chart-fill"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card">
+      <div class="kpi-info">
+        <span>MONITORED FEEDERS</span>
+        <h3 id="plan-total-feeders">4 Units</h3>
+        <small class="text-cyan"><i class="bi bi-broadcast me-1"></i>Substation Transformers</small>
+      </div>
+      <div class="kpi-icon icon-purple">
+        <i class="bi bi-hdd-stack-fill"></i>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CHARTS: 24-HOUR HOURLY PROFILE & FEEDER TRANSFORMER UTILIZATION -->
+<div class="row g-4 mb-4">
+  <div class="col-xl-7">
+    <div class="card-glass h-100">
+      <div class="card-header-custom">
+        <div>
+          <h5 class="text-white mb-0"><i class="bi bi-bezier2 text-cyan me-2"></i>Hourly Load Curve vs Peak Demand (kW)</h5>
+          <small class="text-secondary">24-hour demand trajectory used for spinning reserve allocation</small>
+        </div>
+        <select class="form-select form-select-sm form-select-custom" id="planningFeederSelect" style="width: 170px;">
+          <option value="ALL">Entire Grid</option>
+          {% for f in feeders %}
+          <option value="{{ f.feeder_id }}">{{ f.feeder_id }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="card-body-custom">
+        <div style="height: 320px; position: relative;">
+          <canvas id="planningLoadCurveChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-5">
+    <div class="card-glass h-100">
+      <div class="card-header-custom">
+        <div>
+          <h5 class="text-white mb-0"><i class="bi bi-bar-chart-fill text-amber me-2"></i>Feeder Load vs Rated Capacity</h5>
+          <small class="text-secondary">Transformer bottleneck visualization</small>
+        </div>
+      </div>
+      <div class="card-body-custom">
+        <div style="height: 320px; position: relative;">
+          <canvas id="feederBarChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FEEDER CAPACITY CARDS GRID & AUTOMATED LOAD PLANNING RECOMMENDATIONS -->
+<div class="row g-4">
+  <div class="col-xl-8">
+    <div class="card-glass">
+      <div class="card-header-custom">
+        <h5 class="text-white mb-0"><i class="bi bi-cpu-fill text-emerald me-2"></i>Transformer Feeder Capacity Matrix</h5>
+        <small class="text-secondary">Overload prevention alerts based on rated MW/kW thresholds</small>
+      </div>
+      <div class="card-body-custom">
+        <div class="row g-3" id="feederCardsGrid">
+          <div class="col-12 text-center py-4 text-secondary">
+            <div class="spinner-border spinner-border-sm text-cyan me-2"></div>
+            Loading transformer capacity telemetry...
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-4">
+    <div class="card-glass h-100">
+      <div class="card-header-custom">
+        <h5 class="text-white mb-0"><i class="bi bi-lightbulb-fill text-warning me-2"></i>Planning Insights</h5>
+        <span class="badge bg-warning bg-opacity-25 text-warning">Automated</span>
+      </div>
+      <div class="card-body-custom">
+        <div class="mb-3 p-3 rounded bg-dark border border-secondary border-opacity-25">
+          <h6 class="text-white small fw-bold mb-1"><i class="bi bi-exclamation-circle text-warning me-1"></i>Peak Demand Management</h6>
+          <p class="text-secondary small mb-0">
+            Grid peak occurs consistently between <strong>18:00 and 22:00</strong>. Implementing dynamic Time-of-Use (ToU) surcharges during these hours shifts consumer EV and laundry loads to off-peak slots.
+          </p>
+        </div>
+
+        <div class="mb-3 p-3 rounded bg-dark border border-secondary border-opacity-25">
+          <h6 class="text-white small fw-bold mb-1"><i class="bi bi-shield-check text-emerald me-1"></i>Feeder Balancing Advice</h6>
+          <p class="text-secondary small mb-0">
+            Feeder-East (Industrial) sustains high continuous load. Consider configuring an automated tie-switch interconnect to route surplus residential reserve from Feeder-North during working hours.
+          </p>
+        </div>
+
+        <div class="p-3 rounded bg-dark border border-secondary border-opacity-25">
+          <h6 class="text-white small fw-bold mb-1"><i class="bi bi-graph-up-arrow text-cyan me-1"></i>Capital Expenditure (CapEx) Planning</h6>
+          <p class="text-secondary small mb-0">
+            With historical 24-hr time-series data, utility directors can forecast 12-month substation upgrade needs with 95% statistical confidence instead of arbitrary estimates.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/load_planning.js') }}"></script>
+{% endblock %}

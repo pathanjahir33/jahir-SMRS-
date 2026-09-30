@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+
+{% block title %}Grid Operations Dashboard - SMRS{% endblock %}
+{% block header_title %}Smart Grid Real-Time Operations Control{% endblock %}
+
+{% block content %}
+<!-- KPI METRIC CARDS ROW -->
+<div class="row g-3 mb-4">
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card" id="kpi-card-meters">
+      <div class="kpi-info">
+        <span>Active Smart Meters</span>
+        <h3 id="val-active-meters">--</h3>
+        <small class="text-secondary"><span id="val-total-meters" class="text-white fw-bold">--</span> deployed on grid</small>
+      </div>
+      <div class="kpi-icon icon-cyan">
+        <i class="bi bi-hdd-network-fill"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card" id="kpi-card-energy">
+      <div class="kpi-info">
+        <span>Today's Energy Ingestion</span>
+        <h3 id="val-today-energy">-- <small style="font-size: 1rem; color: #9ca3af;">kWh</small></h3>
+        <small class="text-emerald" style="color: #34d399;"><i class="bi bi-arrow-up-right me-1"></i>Structured Telemetry</small>
+      </div>
+      <div class="kpi-icon icon-emerald">
+        <i class="bi bi-lightning-charge-fill"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card" id="kpi-card-collection">
+      <div class="kpi-info">
+        <span>Billing Efficiency</span>
+        <h3 id="val-collection-rate">--%</h3>
+        <small class="text-amber" style="color: #fbbf24;"><span id="val-unpaid-bills" class="fw-bold">--</span> pending invoices</small>
+      </div>
+      <div class="kpi-icon icon-amber">
+        <i class="bi bi-cash-stack"></i>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-xl-3 col-md-6">
+    <div class="kpi-card" id="kpi-card-alerts">
+      <div class="kpi-info">
+        <span>Active Grid Alerts</span>
+        <h3 id="val-active-alerts">--</h3>
+        <small class="text-danger" id="val-tamper-text">Anomalies & Tampering</small>
+      </div>
+      <div class="kpi-icon icon-purple">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CHARTS ROW: 24-HOUR LOAD CURVE & CONSUMER DISTRIBUTION -->
+<div class="row g-4 mb-4">
+  <!-- 24-HOUR LOAD PROFILE (LOAD PLANNING CORE) -->
+  <div class="col-xl-8">
+    <div class="card-glass h-100">
+      <div class="card-header-custom">
+        <div>
+          <h5 class="text-white"><i class="bi bi-graph-up-arrow text-cyan me-2"></i>24-Hour System Load Curve (kW)</h5>
+          <small class="text-secondary">Solves load planning by tracking peak demand window & hourly kW draw</small>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <select class="form-select form-select-sm form-select-custom" id="chartFeederFilter" style="width: 170px;">
+            <option value="ALL">All Sub-feeders</option>
+            {% for f in feeders %}
+            <option value="{{ f.feeder_id }}">{{ f.feeder_id }}</option>
+            {% endfor %}
+          </select>
+          <button class="btn btn-outline-custom btn-sm" id="btn-refresh-curve" title="Reload load curve">
+            <i class="bi bi-arrow-clockwise"></i>
+          </button>
+        </div>
+      </div>
+      <div class="card-body-custom">
+        <div style="height: 320px; position: relative;">
+          <canvas id="systemLoadChart"></canvas>
+        </div>
+        <div class="row mt-3 pt-3 border-top border-secondary border-opacity-25 text-center">
+          <div class="col-4">
+            <small class="text-secondary d-block">PEAK DEMAND</small>
+            <span class="fs-6 fw-bold text-white" id="stat-peak-demand">-- kW</span>
+          </div>
+          <div class="col-4">
+            <small class="text-secondary d-block">GRID LOAD FACTOR</small>
+            <span class="fs-6 fw-bold text-cyan" id="stat-load-factor" style="color: var(--accent-cyan);">--%</span>
+          </div>
+          <div class="col-4">
+            <small class="text-secondary d-block">PEAK WINDOW</small>
+            <span class="fs-6 fw-bold text-warning" id="stat-peak-window">18:00 - 22:00</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONSUMPTION BY CUSTOMER CATEGORY -->
+  <div class="col-xl-4">
+    <div class="card-glass h-100">
+      <div class="card-header-custom">
+        <h5 class="text-white"><i class="bi bi-pie-chart text-emerald me-2"></i>Category Load Share</h5>
+        <small class="text-secondary">kWh Volume</small>
+      </div>
+      <div class="card-body-custom d-flex flex-column align-items-center justify-content-center">
+        <div style="height: 240px; width: 100%; position: relative;">
+          <canvas id="categoryPieChart"></canvas>
+        </div>
+        <div class="w-100 mt-3 pt-2 border-top border-secondary border-opacity-25" id="categoryBreakdownLegend">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- FEEDER CAPACITY MONITORING & RECENT INGESTION TICKER -->
+<div class="row g-4">
+  <!-- FEEDER CAPACITY BARS (TRANSFORMER OVERLOAD PREVENTION) -->
+  <div class="col-xl-6">
+    <div class="card-glass">
+      <div class="card-header-custom">
+        <div>
+          <h5 class="text-white"><i class="bi bi-distribute-vertical text-amber me-2"></i>Substation Feeder Utilization</h5>
+          <small class="text-secondary">Capacity limits to avoid transformer trip and unplanned blackouts</small>
+        </div>
+        <a href="/load-planning" class="btn btn-outline-custom btn-sm">Full Plan</a>
+      </div>
+      <div class="card-body-custom" id="feederCapacityContainer">
+        <div class="text-center py-4 text-secondary">
+          <div class="spinner-border spinner-border-sm text-cyan me-2" role="status"></div>
+          Loading feeder capacities...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIVE STRUCTURED INGESTION STREAM (SOLVES PROBLEM STATEMENT) -->
+  <div class="col-xl-6">
+    <div class="card-glass">
+      <div class="card-header-custom">
+        <div>
+          <h5 class="text-white"><i class="bi bi-database-check text-cyan me-2"></i>Live Structured Ingestion Feed</h5>
+          <small class="text-secondary">Real-time time-series readings stored in database</small>
+        </div>
+        <a href="/readings" class="btn btn-outline-custom btn-sm">Ingestion Hub</a>
+      </div>
+      <div class="table-responsive" style="max-height: 310px; overflow-y: auto;">
+        <table class="table table-custom align-middle">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Meter ID</th>
+              <th>Load (kW)</th>
+              <th>Cumulative (kWh)</th>
+              <th>Voltage</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="liveIngestionTableBody">
+            <tr>
+              <td colspan="6" class="text-center py-4 text-secondary">Loading incoming telemetry...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

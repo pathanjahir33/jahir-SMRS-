@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}Automated Billing Engine - SMRS{% endblock %}
+{% block header_title %}Automated Tiered & Time-of-Use Billing Engine{% endblock %}
+
+{% block content %}
+<!-- PROBLEM STATEMENT SOLUTION BANNER -->
+<div class="card-glass p-3 mb-4 border-start border-4 border-emerald" style="border-left-color: #10b981 !important;">
+  <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <div>
+      <h6 class="text-white mb-1"><i class="bi bi-receipt text-emerald me-2"></i>Automated Billing from Structured Readings</h6>
+      <small class="text-secondary">
+        Previously, unstructured meter readings led to billing disputes, estimated bills, and delayed revenues. SMRS automates tiered slab and Time-of-Use (ToU) surcharge calculations directly from database timestamps.
+      </small>
+    </div>
+    <span class="badge bg-success bg-opacity-25 text-emerald border border-success border-opacity-25 px-3 py-2">
+      <i class="bi bi-calculator me-1"></i>Automated Invoicing Active
+    </span>
+  </div>
+</div>
+
+<!-- BILLING CONTROLS & KPI ROW -->
+<div class="row g-3 mb-4 align-items-center">
+  <div class="col-md-3">
+    <label class="form-label text-secondary small mb-1">BILLING CYCLE (MONTH)</label>
+    <input type="month" class="form-control form-control-custom" id="billingMonthInput" value="2026-09">
+  </div>
+  <div class="col-md-3">
+    <label class="form-label text-secondary small mb-1">PAYMENT STATUS</label>
+    <select class="form-select form-select-custom" id="billingStatusFilter">
+      <option value="ALL">All Invoices</option>
+      <option value="Unpaid">Unpaid / Pending</option>
+      <option value="Paid">Paid</option>
+      <option value="Overdue">Overdue</option>
+    </select>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label text-secondary small mb-1 d-none d-md-block">&nbsp;</label>
+    <button class="btn btn-primary-custom w-100" id="btn-generate-all-bills">
+      <i class="bi bi-gear-wide-connected me-1"></i>Run Automated Invoicing
+    </button>
+  </div>
+  <div class="col-md-3">
+    <label class="form-label text-secondary small mb-1 d-none d-md-block">&nbsp;</label>
+    <button class="btn btn-outline-custom w-100" id="btn-reload-bills">
+      <i class="bi bi-arrow-clockwise me-1"></i>Refresh Invoices
+    </button>
+  </div>
+</div>
+
+<!-- INVOICES TABLE -->
+<div class="card-glass">
+  <div class="card-header-custom">
+    <div>
+      <h5 class="text-white mb-0"><i class="bi bi-wallet2 text-cyan me-2"></i>Utility Invoices Ledger</h5>
+      <small class="text-secondary">Itemized energy charges calculated from structured cumulative readings</small>
+    </div>
+    <span class="badge bg-secondary" id="billsCountBadge">Loading...</span>
+  </div>
+
+  <div class="table-responsive">
+    <table class="table table-custom align-middle">
+      <thead>
+        <tr>
+          <th>Invoice ID</th>
+          <th>Consumer Name</th>
+          <th>Meter ID</th>
+          <th>Billing Cycle</th>
+          <th>Units Consumed</th>
+          <th>Peak Units</th>
+          <th>Total Payable</th>
+          <th>Status</th>
+          <th class="text-end">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="billingTableBody">
+        <tr>
+          <td colspan="9" class="text-center py-4 text-secondary">Loading billing records...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MODAL: ITEMIZED UTILITY INVOICE (PROFESSIONAL PRINTABLE) -->
+<div class="modal fade" id="invoiceModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content modal-content-custom">
+      <div class="modal-header modal-header-custom">
+        <h5 class="modal-title text-white"><i class="bi bi-file-earmark-text text-cyan me-2"></i>Electricity Utility Invoice</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-body p-4" id="printableInvoiceArea">
+        <!-- INVOICE HEADER -->
+        <div class="d-flex justify-content-between align-items-start pb-3 mb-4 border-bottom border-secondary border-opacity-25">
+          <div>
+            <div class="d-flex align-items-center gap-2 mb-1">
+              <span class="brand-icon" style="width: 32px; height: 32px; font-size: 1rem;"><i class="bi bi-lightning-charge-fill"></i></span>
+              <h5 class="text-white fw-bold mb-0">SMART METER READING SYSTEM (SMRS)</h5>
+            </div>
+            <small class="text-secondary d-block">Metropolitan Smart Grid Electric Utility Board</small>
+            <small class="text-secondary">GST/Tax Reg: UTILITY-ELEC-9874120</small>
+          </div>
+          <div class="text-end">
+            <h6 class="text-cyan fw-bold mb-0" id="inv-bill-id">BILL-202609-001</h6>
+            <small class="text-secondary d-block">Cycle: <span id="inv-billing-month" class="text-white">2026-09</span></small>
+            <small class="text-warning">Due Date: <span id="inv-due-date" class="text-white">2026-10-20</span></small>
+          </div>
+        </div>
+
+        <!-- CONSUMER & METER INFO -->
+        <div class="row g-3 mb-4">
+          <div class="col-6">
+            <small class="text-secondary text-uppercase fw-bold" style="font-size: 0.7rem;">BILLED TO:</small>
+            <h6 class="text-white fw-bold mb-1" id="inv-consumer-name">Alexander Wright</h6>
+            <small class="text-secondary d-block" id="inv-consumer-address">742 Evergreen Terrace</small>
+            <small class="text-secondary d-block" id="inv-consumer-contact">+1-555-0101 | alex@email.com</small>
+            <span class="badge bg-dark border border-secondary text-secondary mt-1" id="inv-consumer-category">Residential</span>
+          </div>
+          <div class="col-6 text-end">
+            <small class="text-secondary text-uppercase fw-bold" style="font-size: 0.7rem;">METER TELEMETRY ASSET:</small>
+            <h6 class="text-white fw-bold mb-1" id="inv-meter-id">SM-N-101</h6>
+            <small class="text-secondary d-block">Serial: <span id="inv-meter-serial" class="text-white">SN-2024-N001</span></small>
+            <small class="text-secondary d-block">Feeder: <span id="inv-feeder-id" class="text-white">FDR-NORTH-01</span></small>
+            <small class="text-cyan d-block">Tariff: <span id="inv-tariff-name">Standard Residential Tiered</span></small>
+          </div>
+        </div>
+
+        <!-- METER READING CONSUMPTION SUMMARY -->
+        <div class="p-3 rounded bg-dark border border-secondary border-opacity-25 mb-4">
+          <div class="row text-center">
+            <div class="col-3">
+              <small class="text-secondary d-block">START READING</small>
+              <span class="fs-6 fw-bold text-white" id="inv-start-kwh">-- kWh</span>
+            </div>
+            <div class="col-3">
+              <small class="text-secondary d-block">END READING</small>
+              <span class="fs-6 fw-bold text-white" id="inv-end-kwh">-- kWh</span>
+            </div>
+            <div class="col-3">
+              <small class="text-secondary d-block">TOTAL UNITS</small>
+              <span class="fs-6 fw-bold text-cyan" id="inv-total-units">-- kWh</span>
+            </div>
+            <div class="col-3">
+              <small class="text-secondary d-block">PEAK UNITS (ToU)</small>
+              <span class="fs-6 fw-bold text-warning" id="inv-peak-units">-- kWh</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- ITEMIZED TARIFF BREAKDOWN TABLE -->
+        <table class="table table-sm table-custom mb-3">
+          <thead>
+            <tr>
+              <th>Charge Item Description</th>
+              <th class="text-end">Units / Rate</th>
+              <th class="text-end">Amount ($)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Tiered Energy Base Charges</td>
+              <td class="text-end text-secondary" id="inv-breakdown-tiers">Slabs 1 & 2 Applied</td>
+              <td class="text-end text-white fw-bold" id="inv-base-charge">$0.00</td>
+            </tr>
+            <tr>
+              <td>Time-of-Use (ToU) Peak Demand Surcharge</td>
+              <td class="text-end text-secondary">Peak 18:00 - 22:00</td>
+              <td class="text-end text-warning" id="inv-peak-surcharge">$0.00</td>
+            </tr>
+            <tr>
+              <td>Grid Fixed Infrastructure Charge</td>
+              <td class="text-end text-secondary">Monthly Metering Fee</td>
+              <td class="text-end text-white" id="inv-fixed-charge">$0.00</td>
+            </tr>
+            <tr>
+              <td>Electricity Regulatory Duty / Tax</td>
+              <td class="text-end text-secondary" id="inv-tax-rate">5.0%</td>
+              <td class="text-end text-secondary" id="inv-tax-amount">$0.00</td>
+            </tr>
+            <tr class="table-active border-top border-secondary">
+              <td class="fs-6 fw-bold text-white">NET AMOUNT DUE</td>
+              <td></td>
+              <td class="fs-5 fw-bold text-cyan text-end" id="inv-total-payable">$0.00</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- PAYMENT STATUS BADGE -->
+        <div class="d-flex align-items-center justify-content-between pt-2">
+          <div>
+            <span class="text-secondary small">Status: </span>
+            <span class="badge-status badge-unpaid" id="inv-payment-badge">Unpaid</span>
+          </div>
+          <small class="text-secondary" id="inv-paid-timestamp"></small>
+        </div>
+      </div>
+
+      <div class="modal-footer modal-footer-custom d-flex justify-content-between">
+        <button type="button" class="btn btn-outline-custom" onclick="window.print()">
+          <i class="bi bi-printer me-1"></i>Print Invoice
+        </button>
+        <div class="d-flex gap-2">
+          <button type="button" class="btn btn-outline-custom" data-bs-dismiss="modal">Close</button>
+          <button type="button" class="btn btn-primary-custom" id="btn-pay-invoice">
+            <i class="bi bi-check-circle me-1"></i>Simulate Payment
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/billing.js') }}"></script>
+{% endblock %}
